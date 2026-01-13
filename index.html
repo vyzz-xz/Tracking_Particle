@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand Tracking | Particle Core</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" type="image/svg+xml" href="logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@900&display=swap" rel="stylesheet">
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+                "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/+esm"
+            }
+        }
+    </script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; color: white; font-family: 'Segoe UI', sans-serif; }
+        #webcam { transform: scaleX(-1); }
+
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #00ffff; cursor: pointer; margin-top: -6px; box-shadow: 0 0 10px #00ffff; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #334155; border-radius: 2px; }
+        
+        .cyan-glow { text-shadow: 0 0 10px cyan; }
+
+        .cam-frame {
+            border: 2px solid #00ffff;
+            box-shadow: 0 0 15px #00ffff, inset 0 0 10px #00ffff;
+            animation: pulse-glow 3s infinite alternate;
+        }
+
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 10px #00ffff, inset 0 0 5px #00ffff; border-color: rgba(0, 255, 255, 0.5); }
+            100% { box-shadow: 0 0 25px #00ffff, inset 0 0 15px #00ffff; border-color: rgba(0, 255, 255, 1); }
+        }
+
+    </style>
+</head>
+<body class="antialiased selection:bg-cyan-500 selection:text-white">
+
+    <!-- Canvas -->
+    <div id="canvas-container" class="absolute inset-0 z-0"></div>
+
+    <!-- UI Overlay -->
+    <div class="absolute inset-0 z-10 pointer-events-none p-6 flex flex-col justify-between">
+        
+        <!-- Top Section -->
+        <div class="flex justify-between items-start">
+            <div class="pointer-events-auto">
+                <h1 class="text-1xl md:text-2xl font-black tracking-tighter text-transparent bg-clip-text bg-white drop-shadow-lg" style="font-family: 'Orbitron', sans-serif;">
+                    PARTICLE CORE
+                </h1>
+                
+                <!-- Active Shape Display -->
+                <div id="current-gesture" class="mt-4 text-4xl font-bold text-cyan-400 cyan-glow transition-all duration-300 opacity-0 translate-y-4" style="font-family: 'Orbitron', sans-serif;">
+                    SPHERE
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="pointer-events-auto bg-black/80 backdrop-blur-md border border-cyan-500/30 rounded-2xl p-4 w-64 shadow-[0_0_20px_rgba(0,255,255,0.1)] max-h-[80vh] overflow-y-auto hidden md:block">
+                <div class="mb-4">
+                    <label class="flex justify-between text-xs font-medium text-white mb-2 uppercase tracking-wide">
+                        <span>Particle Count</span>
+                        <span id="particle-count-display">20,000</span>
+                    </label>
+                    <input type="range" id="particle-slider" min="1000" max="40000" step="1000" value="20000">
+                </div>
+                
+                <div class="space-y-2 text-[10px] text-gray-400 uppercase font-medium tracking-wider">
+                    <div class="flex items-center gap-2"><span class="text-base">✊</span> <span class="text-white">Sphere</span></div>
+                    <div class="flex items-center gap-2"><span class="text-base">✌️</span> <span class="text-white">Heart</span></div>
+                    <div class="flex items-center gap-2"><span class="text-base">☝️</span> <span class="text-white">Saturn</span></div>
+                    <div class="flex items-center gap-2"><span class="text-base">👌</span> <span class="text-white">Torus</span></div>
+                    <div class="flex items-center gap-2"><span class="text-base">👍</span> <span class="text-white">Galaxy</span></div>
+                    <div class="flex items-center gap-2"><span class="text-base">🤘</span> <span class="text-white">Cube</span></div>
+                    <div class="flex items-center gap-2"><span class="text-base">🤟</span> <span class="text-white">Text</span></div>
+                    <div class="flex items-center gap-2"><span class="text-base">🖐️</span> <span class="text-white">Boom</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Copyright -->
+        <div class="absolute bottom-6 left-6 pointer-events-auto z-20">
+            <p class="text-[10px] text-white/50 font-mono tracking-widest hover:text-white transition-colors cursor-default">
+                &copy;By Vizzett
+            </p>
+        </div>
+
+        <!-- Webcam PIP -->
+        <div class="pointer-events-auto relative w-32 h-24 md:w-30 md:h-18 bg-black cam-frame rounded-xl shadow-2xl ml-auto">
+            <video id="webcam" class="w-full h-full object-cover opacity-80 hover:opacity-100 rounded-xl transition-opacity" autoplay playsinline muted></video>
+        </div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loading" class="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="relative w-24 h-24 mb-8">
+            <div class="absolute inset-0 border-4 border-cyan-500/30 rounded-full animate-ping"></div>
+            <div class="absolute inset-0 border-4 border-t-cyan-500 border-r-blue-500 border-b-cyan-500 border-l-transparent rounded-full animate-spin"></div>
+        </div>
+        <h2 class="text-xl font-medium text-white tracking-widest" style="font-family: 'Orbitron', sans-serif;">LOADING SYSTEM...</h2>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
+
+        // --- Config ---
+        const MAX_PARTICLES = 40000;
+        let activeParticleCount = 20000;
+        const LERP_SPEED = 0.08; 
+        
+        // --- Three.js State ---
+        let scene, camera, renderer;
+        let particles, starfield;
+        let positions, colors, targetPositions, targetColors;
+        let velocities = []; 
+        let isExploding = false;
+        let currentShapeType = 'sphere'; 
+        
+        // --- Initialization ---
+        async function init() {
+            await document.fonts.ready; 
+
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x00050a); 
+            scene.fog = new THREE.FogExp2(0x00050a, 0.015);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            updateCameraPosition();
+
+            renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            container.appendChild(renderer.domElement);
+
+            createStarfield();
+
+            const geometry = new THREE.BufferGeometry();
+            
+            positions = new Float32Array(MAX_PARTICLES * 3);
+            colors = new Float32Array(MAX_PARTICLES * 3);
+            targetPositions = new Float32Array(MAX_PARTICLES * 3);
+            targetColors = new Float32Array(MAX_PARTICLES * 3);
+
+            for(let i=0; i<MAX_PARTICLES; i++) velocities.push({x:0, y:0, z:0});
+
+            const sphereData = generateSphere(MAX_PARTICLES, 12);
+            for(let i=0; i<MAX_PARTICLES*3; i++) {
+                positions[i] = sphereData.pos[i];
+                targetPositions[i] = sphereData.pos[i];
+                colors[i] = sphereData.col[i];
+                targetColors[i] = sphereData.col[i];
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            geometry.setDrawRange(0, activeParticleCount);
+
+            const material = new THREE.PointsMaterial({
+                size: 0.2,
+                vertexColors: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                transparent: true,
+                opacity: 0.9
+            });
+
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+
+            window.addEventListener('resize', onResize);
+            setupUI();
+            animate();
+        }
+
+        function createStarfield() {
+            const starsGeo = new THREE.BufferGeometry();
+            const starCount = 3000;
+            const starPos = new Float32Array(starCount * 3);
+            for(let i=0; i<starCount*3; i++) starPos[i] = (Math.random() - 0.5) * 300;
+            starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+            const starsMat = new THREE.PointsMaterial({color: 0x44aaaa, size: 0.3, transparent: true, opacity: 0.6});
+            starfield = new THREE.Points(starsGeo, starsMat);
+            scene.add(starfield);
+        }
+
+        const tempColor = new THREE.Color();
+
+        // --- SHAPE GENERATORS ---
+        function setCyanColor(variation = true) {
+            if(variation) {
+                tempColor.setHSL(0.5 + (Math.random()-0.5)*0.05, 1.0, 0.5);
+            } else {
+                tempColor.setHex(0x00ffff);
+            }
+        }
+
+        function generateSphere(count, radius) {
+            const pos = new Float32Array(count * 3);
+            const col = new Float32Array(count * 3);
+            for(let i=0; i<count; i++) {
+                const u = Math.random(); const v = Math.random();
+                const theta = 2 * Math.PI * u; const phi = Math.acos(2 * v - 1);
+                const r = Math.cbrt(Math.random()) * radius;
+                pos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+                pos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+                pos[i*3+2] = r * Math.cos(phi);
+                
+                setCyanColor();
+                col[i*3] = tempColor.r; col[i*3+1] = tempColor.g; col[i*3+2] = tempColor.b;
+            }
+            return { pos, col };
+        }
+
+        function generateHeart(count) {
+            const pos = new Float32Array(count * 3);
+            const col = new Float32Array(count * 3);
+            for(let i=0; i<count; i++) {
+                const t = Math.random() * Math.PI * 2;
+                const scale = Math.sqrt(Math.random()); 
+                let x = 16 * Math.pow(Math.sin(t), 3);
+                let y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+                let z = (Math.random()-0.5) * 5 * scale;
+                x *= scale * 0.8; y *= scale * 0.8;
+                pos[i*3] = x; pos[i*3+1] = y; pos[i*3+2] = z;
+                
+                tempColor.setHex(0xffffff);
+                col[i*3] = tempColor.r; col[i*3+1] = tempColor.g; col[i*3+2] = tempColor.b;
+            }
+            return { pos, col };
+        }
+
+        function generateSaturn(count) {
+            const pos = new Float32Array(count * 3);
+            const col = new Float32Array(count * 3);
+            const tilt = 0.4;
+            for(let i=0; i<count; i++) {
+                const isRing = Math.random() > 0.4;
+                let x, y, z;
+                if(isRing) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const r = Math.sqrt(Math.random() * (625 - 196) + 196); 
+                    x = r * Math.cos(angle); z = r * Math.sin(angle); y = (Math.random()-0.5)*0.5;
+                } else {
+                    const r = 9;
+                    const u = Math.random(), v = Math.random();
+                    const theta = 2 * Math.PI * u, phi = Math.acos(2 * v - 1);
+                    const rad = Math.cbrt(Math.random()) * r;
+                    x = rad * Math.sin(phi) * Math.cos(theta); y = rad * Math.sin(phi) * Math.sin(theta); z = rad * Math.cos(phi);
+                }
+                const yTilt = y * Math.cos(tilt) - z * Math.sin(tilt);
+                const zTilt = y * Math.sin(tilt) + z * Math.cos(tilt);
+                pos[i*3] = x; pos[i*3+1] = yTilt; pos[i*3+2] = zTilt;
+                
+                setCyanColor(); 
+                col[i*3] = tempColor.r; col[i*3+1] = tempColor.g; col[i*3+2] = tempColor.b;
+            }
+            return { pos, col };
+        }
+
+        function generateTorus(count) {
+            const pos = new Float32Array(count * 3);
+            const col = new Float32Array(count * 3);
+            const R = 12; const r = 4;  
+            for(let i=0; i<count; i++) {
+                const u = Math.random() * Math.PI * 2;
+                const v = Math.random() * Math.PI * 2;
+                const x = (R + r * Math.cos(v)) * Math.cos(u);
+                const y = (R + r * Math.cos(v)) * Math.sin(u);
+                const z = r * Math.sin(v);
+                pos[i*3] = x; pos[i*3+1] = y; pos[i*3+2] = z;
+                
+                tempColor.setHex(0xffffff); 
+                col[i*3] = tempColor.r; col[i*3+1] = tempColor.g; col[i*3+2] = tempColor.b;
+            }
+            return { pos, col };
+        }
+
+        function generateSpiral(count) {
+            const pos = new Float32Array(count * 3);
+            const col = new Float32Array(count * 3);
+            for(let i=0; i<count; i++) {
+                const angle = i * 0.02; const dist = angle * 0.2; 
+                const armOffset = (i % 3) * (Math.PI * 2 / 3); 
+                const r = dist + Math.random() * 2; const a = angle + armOffset;
+                const x = r * Math.cos(a); const y = (Math.random() - 0.5) * 4; const z = r * Math.sin(a);
+                pos[i*3] = x; pos[i*3+1] = y; pos[i*3+2] = z;
+                
+                setCyanColor(); 
+                col[i*3] = tempColor.r; col[i*3+1] = tempColor.g; col[i*3+2] = tempColor.b;
+            }
+            return { pos, col };
+        }
+
+        function generateCube(count) {
+            const pos = new Float32Array(count * 3);
+            const col = new Float32Array(count * 3);
+            const L = 14;
+            for(let i=0; i<count; i++) {
+                const x = (Math.random() - 0.5) * L * 2;
+                const y = (Math.random() - 0.5) * L * 2;
+                const z = (Math.random() - 0.5) * L * 2;
+                pos[i*3] = x; pos[i*3+1] = y; pos[i*3+2] = z;
+                
+                setCyanColor(); 
+                col[i*3] = tempColor.r; col[i*3+1] = tempColor.g; col[i*3+2] = tempColor.b;
+            }
+            return { pos, col };
+        }
+
+        function generateText(text, count) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 400; canvas.height = 200;
+            ctx.fillStyle = '#000'; ctx.fillRect(0,0,400,200);
+            
+            ctx.fillStyle = '#fff'; 
+            ctx.font = '900 50px "Orbitron"'; 
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(text, 200, 100);
+            
+            const data = ctx.getImageData(0,0,400,200).data;
+            const valid = [];
+            for(let y=0; y<200; y+=2) {
+                for(let x=0; x<400; x+=2) {
+                    if(data[(y*400+x)*4] > 128) {
+                        valid.push({x: (x-200)*0.12, y: -(y-100)*0.12});
+                    }
+                }
+            }
+            const pos = new Float32Array(count * 3);
+            const col = new Float32Array(count * 3);
+            for(let i=0; i<count; i++) {
+                const p = valid[i % valid.length];
+                pos[i*3] = p.x; pos[i*3+1] = p.y; pos[i*3+2] = (Math.random()-0.5) * 2;
+                
+                tempColor.setHex(0xffffff);
+                col[i*3] = tempColor.r; col[i*3+1] = tempColor.g; col[i*3+2] = tempColor.b;
+            }
+            return { pos, col };
+        }
+
+        // --- Logic Engine ---
+        function morphTo(shape) {
+            if (currentShapeType === shape) return;
+            currentShapeType = shape;
+            updateStatusText(shape);
+
+            if (shape === 'explode') {
+                triggerExplosion();
+                return;
+            }
+            isExploding = false; 
+
+            let data;
+            if (shape === 'sphere') data = generateSphere(MAX_PARTICLES, 12);
+            else if (shape === 'heart') data = generateHeart(MAX_PARTICLES);
+            else if (shape === 'saturn') data = generateSaturn(MAX_PARTICLES);
+            else if (shape === 'torus') data = generateTorus(MAX_PARTICLES);
+            else if (shape === 'spiral') data = generateSpiral(MAX_PARTICLES);
+            else if (shape === 'cube') data = generateCube(MAX_PARTICLES);
+            else if (shape === 'text') data = generateText("I LOVE U", MAX_PARTICLES);
+
+            for(let i=0; i<MAX_PARTICLES * 3; i++) {
+                targetPositions[i] = data.pos[i];
+                targetColors[i] = data.col[i];
+            }
+        }
+
+        function triggerExplosion() {
+            if (isExploding) return;
+            isExploding = true;
+            for(let i=0; i<MAX_PARTICLES; i++) {
+                const ix = i*3;
+                const len = Math.sqrt(positions[ix]**2 + positions[ix+1]**2 + positions[ix+2]**2) + 0.01;
+                const speed = 0.5 + Math.random() * 1.5;
+                velocities[i].x = (positions[ix]/len) * speed;
+                velocities[i].y = (positions[ix+1]/len) * speed;
+                velocities[i].z = (positions[ix+2]/len) * speed;
+                
+                tempColor.setHSL(Math.random(), 1.0, 0.7); 
+                targetColors[ix] = tempColor.r; targetColors[ix+1] = tempColor.g; targetColors[ix+2] = tempColor.b;
+            }
+        }
+
+        function updateStatusText(shape) {
+            const el = document.getElementById('current-gesture');
+            el.style.opacity = '1'; el.style.transform = 'translateY(0)';
+            
+            let text = shape.toUpperCase();
+            let colorClass = "text-cyan-400 cyan-glow"; 
+            
+            if(shape === 'text') { 
+                text = "I LOVE YOU"; 
+                colorClass = "text-cyan-500 cyan-glow";
+            }
+            if(shape === 'explode') { 
+                text = "BOOM!"; 
+                colorClass = "text-cyan-500 cyan-glow";
+            }
+            
+            el.innerText = text;
+            el.className = `mt-4 text-4xl font-bold transition-all duration-300 ${colorClass}`;
+            el.style.fontFamily = "'Orbitron', sans-serif";
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const posAttr = particles.geometry.attributes.position;
+            const colAttr = particles.geometry.attributes.color;
+            const pArray = posAttr.array;
+            const cArray = colAttr.array;
+
+            if (isExploding) {
+                for(let i=0; i<activeParticleCount; i++) {
+                    const idx = i*3;
+                    pArray[idx] += velocities[i].x; pArray[idx+1] += velocities[i].y; pArray[idx+2] += velocities[i].z;
+                    velocities[i].x *= 0.96; velocities[i].y *= 0.96; velocities[i].z *= 0.96;
+                    cArray[idx] += (targetColors[idx] - cArray[idx]) * 0.1;
+                    cArray[idx+1] += (targetColors[idx+1] - cArray[idx+1]) * 0.1;
+                    cArray[idx+2] += (targetColors[idx+2] - cArray[idx+2]) * 0.1;
+                }
+            } else {
+                for(let i=0; i<activeParticleCount * 3; i++) {
+                    pArray[i] += (targetPositions[i] - pArray[i]) * LERP_SPEED;
+                    cArray[i] += (targetColors[i] - cArray[i]) * LERP_SPEED;
+                }
+            }
+            posAttr.needsUpdate = true; colAttr.needsUpdate = true;
+            const time = Date.now() * 0.0001;
+            particles.rotation.y = time;
+            starfield.rotation.y = time * 0.3;
+            predictWebcam();
+            renderer.render(scene, camera);
+        }
+
+        // --- Vision ---
+        let handLandmarker;
+        const video = document.getElementById('webcam');
+        let lastVideoTime = -1;
+
+        async function initVision() {
+            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
+            handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task", delegate: "GPU" },
+                runningMode: "VIDEO", numHands: 1
+            });
+            navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
+                video.srcObject = stream;
+                video.addEventListener("loadeddata", () => {
+                    document.getElementById('loading').style.opacity = '0';
+                    setTimeout(() => document.getElementById('loading').remove(), 500);
+                });
+            });
+        }
+
+        function predictWebcam() {
+            if (!handLandmarker || !video.videoWidth) return;
+            if (video.currentTime !== lastVideoTime) {
+                lastVideoTime = video.currentTime;
+                const results = handLandmarker.detectForVideo(video, performance.now());
+                if (results.landmarks && results.landmarks.length > 0) {
+                    const gesture = detectGesture(results.landmarks[0]);
+                    if (gesture) morphTo(gesture);
+                }
+            }
+        }
+
+        function detectGesture(lm) {
+            const isUp = (tip, pip) => lm[tip].y < lm[pip].y;
+            const indexUp = isUp(8, 6);
+            const middleUp = isUp(12, 10);
+            const ringUp = isUp(16, 14);
+            const pinkyUp = isUp(20, 18);
+            
+            const thumbOpen = Math.abs(lm[4].x - lm[2].x) > 0.05; 
+            const thumbUp = lm[4].y < lm[3].y; 
+
+            if (!indexUp && !middleUp && !ringUp && !pinkyUp && !thumbOpen) return 'sphere';
+            if (indexUp && middleUp && !ringUp && !pinkyUp) return 'heart';
+            if (indexUp && !middleUp && !ringUp && !pinkyUp) return 'saturn';
+            const indexTouchThumb = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y) < 0.05;
+            if (indexTouchThumb && middleUp && ringUp) return 'torus';
+            if (thumbUp && !indexUp && !middleUp && !ringUp && !pinkyUp) return 'spiral';
+            if (indexUp && pinkyUp && !middleUp && !ringUp && !thumbOpen) return 'cube';
+            if (thumbOpen && indexUp && pinkyUp && !middleUp && !ringUp) return 'text';
+            if (indexUp && middleUp && ringUp && pinkyUp) return 'explode'; 
+
+            return null;
+        }
+
+        function setupUI() {
+            const slider = document.getElementById('particle-slider');
+            const display = document.getElementById('particle-count-display');
+            slider.addEventListener('input', (e) => {
+                activeParticleCount = parseInt(e.target.value);
+                display.innerText = activeParticleCount.toLocaleString();
+                particles.geometry.setDrawRange(0, activeParticleCount);
+            });
+            window.addEventListener('resize', onResize);
+        }
+
+        function updateCameraPosition() {
+            if(window.innerWidth < 768) {
+                camera.position.z = 75; 
+            } else {
+                camera.position.z = 45; 
+            }
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            updateCameraPosition();
+        }
+
+        init();
+        initVision();
+    </script>
+</body>
+</html>
