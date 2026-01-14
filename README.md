@@ -29,7 +29,7 @@ Pelacakan Tangan Real-time: Mendeteksi gerakan tangan dan jari Anda secara insta
 
 Desain Responsif: Tampilan menyesuaikan otomatis baik di Laptop/PC maupun HP (Mobile).
 
-Estetika : Tampilan visual sci-fi futuristik dengan font Orbitron dan efek cahaya neon (Glow).
+Estetika Cyberpunk: Tampilan visual sci-fi futuristik dengan font Orbitron dan efek cahaya neon (Glow).
 
 
 🛠️ Teknologi yang Digunakan
@@ -43,22 +43,21 @@ Three.js (Untuk Rendering Grafis & Partikel 3D)
 MediaPipe (Computer Vision & AI Hand Tracking dari Google)
 
 
-
 🚀 Cara Menjalankan di Komputer Lokal
 
 Clone Repository ini:
 
 git clone [https://github.com/vyzz-xz/tracking_particle.git]
 
-Buka Folder Proyek:
 
+Buka Folder Proyek:
 Masuk ke folder yang baru saja di-download.
 
 Jalankan Local Server:
-
 Karena browser memblokir akses webcam jika membuka file HTML secara langsung (file://), Anda wajib menggunakan Local Server.
 
 VS Code: Install ekstensi "Live Server", buka index.html, klik kanan lalu pilih "Open with Live Server".
+
 
 
 📸 Tangkapan Layar (Screenshots)
