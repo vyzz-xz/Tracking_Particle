@@ -5,6 +5,7 @@ Sistem Partikel 3D Interaktif yang dikendalikan langsung oleh Gestur Tangan. Dib
 🔗 Coba Sekarang (Live Demo): https://trackingparticle.vercel.app/
 
 
+
 🌟 Fitur Utama
 
 Pelacakan Tangan Real-time: Mendeteksi gerakan tangan dan jari Anda secara instan melalui webcam tanpa perlu alat tambahan.
@@ -27,9 +28,13 @@ Pelacakan Tangan Real-time: Mendeteksi gerakan tangan dan jari Anda secara insta
 
 🤟 ILY Sign: Memunculkan Teks "I LOVE U".
 
+
+
+
 Desain Responsif: Tampilan menyesuaikan otomatis baik di Laptop/PC maupun HP (Mobile).
 
 Estetika Cyberpunk: Tampilan visual sci-fi futuristik dengan font Orbitron dan efek cahaya neon (Glow).
+
 
 
 🛠️ Teknologi yang Digunakan
@@ -41,6 +46,7 @@ JavaScript Modern (ES6+)
 Three.js (Untuk Rendering Grafis & Partikel 3D)
 
 MediaPipe (Computer Vision & AI Hand Tracking dari Google)
+
 
 
 🚀 Cara Menjalankan di Komputer Lokal
@@ -57,6 +63,9 @@ Jalankan Local Server:
 Karena browser memblokir akses webcam jika membuka file HTML secara langsung (file://), Anda wajib menggunakan Local Server.
 
 VS Code: Install ekstensi "Live Server", buka index.html, klik kanan lalu pilih "Open with Live Server".
+
+
+
 
 
 
